@@ -1,0 +1,19 @@
+import type { QueryKey, UseQueryOptions } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+
+import { useServices } from "@src/context/ServicesProvider";
+import type { Balances } from "@src/types";
+import { QueryKeys } from "./queryKeys";
+
+export function useBalances(address?: string, options?: Omit<UseQueryOptions<Balances | null>, "queryKey" | "queryFn">) {
+  const { walletBalancesService, chainApiHttpClient } = useServices();
+  return useQuery({
+    queryKey: QueryKeys.getBalancesKey(address) as QueryKey,
+    queryFn: () => {
+      if (!address) return null;
+      return walletBalancesService.getBalances(address);
+    },
+    ...options,
+    enabled: options?.enabled !== false && !!address && !chainApiHttpClient.isFallbackEnabled
+  });
+}

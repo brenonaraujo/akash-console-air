@@ -1,0 +1,293 @@
+"use client";
+import { useEffect, useState } from "react";
+import {
+  Button,
+  buttonVariants,
+  CheckboxWithLabel,
+  CustomPagination,
+  Input,
+  Spinner,
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@akashnetwork/ui/components";
+import { cn } from "@akashnetwork/ui/utils";
+import { Refresh, Rocket, Xmark } from "iconoir-react";
+import { useAtom } from "jotai";
+import Link from "next/link";
+import { NextSeo } from "next-seo";
+
+import { useLocalNotes } from "@src/components/LocalNoteManager";
+import { LinkTo } from "@src/components/shared/LinkTo";
+import { useSettings } from "@src/context/SettingsProvider";
+import { useWallet } from "@src/context/WalletProvider";
+import { useListSelection } from "@src/hooks/useListSelection/useListSelection";
+import { useManagedDeploymentConfirm } from "@src/hooks/useManagedDeploymentConfirm";
+import { useDeploymentList } from "@src/queries/useDeploymentQuery";
+import { useProviderList } from "@src/queries/useProvidersQuery";
+import sdlStore from "@src/store/sdlStore";
+import type { DeploymentDto, NamedDeploymentDto } from "@src/types/deployment";
+import { TransactionMessageData } from "@src/utils/TransactionMessageData";
+import { UrlService } from "@src/utils/urlUtils";
+import { NoDeploymentsState } from "../home/NoDeploymentsState";
+import Layout from "../layout/Layout";
+import { Title } from "../shared/Title";
+import { DeploymentListRow } from "./DeploymentListRow";
+
+export const DeploymentList: React.FunctionComponent = () => {
+  const { address, signAndBroadcastTx, isWalletLoaded, isWalletConnected } = useWallet();
+  const { data: providers, isFetching: isLoadingProviders } = useProviderList();
+  const { data: deployments, isFetching: isLoadingDeployments, refetch: getDeployments } = useDeploymentList(address, { enabled: false });
+  const [pageIndex, setPageIndex] = useState(0);
+  const { settings, isSettingsInit } = useSettings();
+  const [search, setSearch] = useState("");
+  const { getDeploymentName } = useLocalNotes();
+  const [filteredDeployments, setFilteredDeployments] = useState<NamedDeploymentDto[] | null>(null);
+  const [isFilteringActive, setIsFilteringActive] = useState(true);
+  const { apiEndpoint } = settings;
+  const [pageSize, setPageSize] = useState<number>(10);
+  const orderedDeployments = filteredDeployments
+    ? [...filteredDeployments].sort((a: DeploymentDto, b: DeploymentDto) => (a.createdAt < b.createdAt ? 1 : -1))
+    : [];
+  const start = pageIndex * pageSize;
+  const end = start + pageSize;
+  const currentPageDeployments = orderedDeployments.slice(start, end);
+  const pageCount = Math.ceil(orderedDeployments.length / pageSize);
+  const [, setDeploySdl] = useAtom(sdlStore.deploySdl);
+  const { closeDeploymentConfirm } = useManagedDeploymentConfirm();
+
+  const { selectedItemIds, selectItem, clearSelection } = useListSelection<string>({
+    ids: currentPageDeployments.map(deployment => deployment.dseq)
+  });
+
+  useEffect(() => {
+    if (isWalletLoaded && isSettingsInit) {
+      getDeployments();
+    }
+  }, [isWalletLoaded, isSettingsInit, getDeployments, apiEndpoint, address]);
+
+  useEffect(() => {
+    if (deployments) {
+      let filteredDeployments = deployments.map(d => {
+        const name = getDeploymentName(d.dseq);
+
+        return {
+          ...d,
+          name
+        };
+      }) as NamedDeploymentDto[];
+
+      // Filter for search
+      if (search) {
+        filteredDeployments = filteredDeployments.filter(
+          x => x.name?.toLowerCase().includes(search.toLowerCase()) || x.dseq?.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+
+      if (isFilteringActive) {
+        filteredDeployments = filteredDeployments.filter(d => d.state === "active");
+      }
+
+      setFilteredDeployments(filteredDeployments);
+    }
+  }, [deployments, search, getDeploymentName, isFilteringActive]);
+
+  const handleChangePage = (newPage: number) => {
+    setPageIndex(newPage);
+  };
+
+  const onIsFilteringActiveClick = (value: boolean) => {
+    setPageIndex(0);
+    setIsFilteringActive(value);
+  };
+
+  const onSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setSearch(value);
+  };
+
+  const onCloseSelectedDeployments = async () => {
+    try {
+      const isConfirmed = await closeDeploymentConfirm(selectedItemIds);
+
+      if (!isConfirmed) {
+        return;
+      }
+
+      const messages = selectedItemIds.map(dseq => TransactionMessageData.getCloseDeploymentMsg(address, `${dseq}`));
+      const response = await signAndBroadcastTx(messages);
+      if (response) {
+        getDeployments();
+        clearSelection();
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const onDeployClick = () => {
+    setDeploySdl(null);
+  };
+
+  const onPageSizeChange = (value: number) => {
+    setPageSize(value);
+    setPageIndex(0);
+  };
+
+  return (
+    <Layout isLoading={isLoadingDeployments || isLoadingProviders} isUsingSettings isUsingWallet>
+      <NextSeo title="Deployments" />
+      {deployments && deployments.length > 0 && isWalletConnected && (
+        <div className="flex flex-wrap items-center pb-6">
+          <>
+            <Title className="font-bold" subTitle>
+              Deployments
+            </Title>
+
+            <div className="ml-6">
+              <Button aria-label="back" onClick={() => getDeployments()} size="icon" variant="ghost">
+                <Refresh />
+              </Button>
+            </div>
+
+            <div className="ml-6">
+              <div className="flex items-center space-x-2">
+                <CheckboxWithLabel label="Active" checked={isFilteringActive} onCheckedChange={onIsFilteringActiveClick} />
+              </div>
+            </div>
+
+            {selectedItemIds.length > 0 && (
+              <>
+                <div className="md:ml-6">
+                  <Button onClick={onCloseSelectedDeployments} color="secondary" size="sm">
+                    Close selected ({selectedItemIds.length})
+                  </Button>
+                </div>
+
+                <div className="ml-6">
+                  <LinkTo onClick={clearSelection}>Clear</LinkTo>
+                </div>
+              </>
+            )}
+
+            {(filteredDeployments?.length || 0) > 0 && (
+              <Link
+                href={UrlService.newDeployment()}
+                className={cn("ml-auto space-x-2", buttonVariants({ variant: "default", size: "sm" }))}
+                aria-disabled={settings.isBlockchainDown}
+                onClick={onDeployClick}
+              >
+                <Rocket className="rotate-45 text-sm" />
+                <span className="whitespace-nowrap">Deploy</span>
+              </Link>
+            )}
+          </>
+        </div>
+      )}
+
+      {((filteredDeployments?.length || 0) > 0 || !!search) && (
+        <div className="flex items-center pb-6">
+          <div className="flex-grow">
+            <Input
+              value={search}
+              onChange={onSearchChange}
+              label="Search Deployments by name"
+              className="w-full"
+              type="text"
+              endIcon={
+                !!search && (
+                  <Button size="icon" variant="text" onClick={() => setSearch("")}>
+                    <Xmark className="text-xs" />
+                  </Button>
+                )
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {filteredDeployments?.length === 0 && !isLoadingDeployments && !search && (
+        <NoDeploymentsState
+          onDeployClick={onDeployClick}
+          hasDeployments={Boolean(deployments && deployments.length > 0)}
+          isWalletConnected={isWalletConnected}
+          showTemplatesButton
+        />
+      )}
+
+      {(!filteredDeployments || filteredDeployments?.length === 0) && isLoadingDeployments && !search && (
+        <div className="flex items-center justify-center p-8">
+          <Spinner size="large" />
+        </div>
+      )}
+
+      <div>
+        {orderedDeployments.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between pb-6">
+            <span className="text-xs">
+              You have <strong>{orderedDeployments.length}</strong>
+              {isFilteringActive ? " active" : ""} deployments
+            </span>
+          </div>
+        )}
+
+        {currentPageDeployments?.length > 0 && (
+          <Table className="min-w-[1024px] table-fixed">
+            <colgroup>
+              <col width="120" />
+              <col />
+              <col width="15%" />
+              <col width="20%" />
+              <col width="25%" />
+              <col width="130px" />
+            </colgroup>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-center">Specs</TableHead>
+                <TableHead className="text-center">Name</TableHead>
+                <TableHead className="text-center">DSEQ</TableHead>
+                <TableHead className="text-center">Cost and balance</TableHead>
+                <TableHead className="text-center">Leases</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {currentPageDeployments.map(deployment => (
+                <DeploymentListRow
+                  key={deployment.dseq}
+                  deployment={deployment}
+                  refreshDeployments={getDeployments}
+                  providers={providers}
+                  isSelectable
+                  onSelectDeployment={selectItem}
+                  checked={selectedItemIds.includes(deployment.dseq)}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {search && currentPageDeployments.length === 0 && (
+        <div className="py-6">
+          <p>No deployment found.</p>
+        </div>
+      )}
+
+      {(filteredDeployments?.length || 0) > 0 && (
+        <div className="flex items-center justify-center py-8">
+          <CustomPagination
+            totalPageCount={pageCount}
+            setPageIndex={handleChangePage}
+            pageIndex={pageIndex}
+            pageSize={pageSize}
+            setPageSize={onPageSizeChange}
+          />
+        </div>
+      )}
+    </Layout>
+  );
+};

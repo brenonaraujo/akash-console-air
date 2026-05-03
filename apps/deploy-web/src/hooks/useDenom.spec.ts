@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+
+import type { DEPENDENCIES } from "./useDenom";
+import { useSupportedDenoms, useUsdcDenom } from "./useDenom";
+
+import { renderHook } from "@testing-library/react";
+
+describe(useUsdcDenom.name, () => {
+  it("returns usdc denom for the selected network", () => {
+    const { result } = renderHook(() => useUsdcDenom(buildDependencies()));
+
+    expect(result.current).toBeTruthy();
+    expect(typeof result.current).toBe("string");
+  });
+});
+
+describe(useSupportedDenoms.name, () => {
+  it("returns only ACT", () => {
+    const { result } = renderHook(() => useSupportedDenoms());
+
+    expect(result.current).toHaveLength(1);
+    expect(result.current.map(d => d.id)).toEqual(["uact"]);
+  });
+
+  it("sets correct properties for ACT denom", () => {
+    const { result } = renderHook(() => useSupportedDenoms());
+
+    expect(result.current[0]).toEqual({ id: "uact", label: "uACT", tokenLabel: "ACT", value: "uact" });
+  });
+});
+
+function buildDependencies(input: { networkId?: string } = {}) {
+  return {
+    useServices: () =>
+      ({
+        networkStore: {
+          useSelectedNetworkId: () => input.networkId ?? "mainnet"
+        }
+      }) as ReturnType<typeof DEPENDENCIES.useServices>
+  } as typeof DEPENDENCIES;
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@akashnetwork/logging",
+  "version": "2.0.4",
+  "description": "Package containing logging tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akash-network/console"
+  },
+  "license": "Apache-2.0",
+  "author": "Akash Network",
+  "exports": {
+    ".": "./src/index.ts",
+    "./otel": "./src/otel.ts",
+    "./package.json": "./package.json"
+  },
+  "main": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write ./*.{ts,json} **/*.{ts,json}",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate:types": "tsc -p tsconfig.build.json --noEmit && echo"
+  },
+  "dependencies": {
+    "http-errors": "^2.0.0",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/http-errors": "^2.0.4",
+    "@types/node": "^22.8.6",
+    "pino-pretty": "^11.3.0",
+    "vitest": "4.0.18",
+    "vitest-mock-extended": "^3.1.0"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "pino-pretty": "^11.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "pino-pretty": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,30 @@
+coverage:
+  status:
+    project:
+      default: false
+      deploy-web:
+        target: 40%
+        flags:
+          - deploy-web
+    patch:
+      default: off
+      deploy-web:
+        target: 50%
+        flags:
+          - deploy-web
+
+flags:
+  deploy-web:
+    carryforward: true
+    paths:
+      - apps/deploy-web/
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: true
+  require_base: yes
+  require_head: yes
+  branches:
+    - main
+  show_carryforward_flags: true

@@ -1,0 +1,61 @@
+import "@akashnetwork/env-loader";
+
+import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { defineConfig } from "vitest/config";
+
+const commonAlias: Record<string, string> = {
+  "@src": path.resolve("./src"),
+  "@tests": path.resolve("./tests")
+};
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    outputFile: {
+      junit: "junit.xml"
+    },
+    coverage: {
+      include: ["src/**/*.{js,ts,tsx}"],
+      exclude: ["src/**/Editor/monaco-*.ts", "src/**/Editor/*.worker.ts"]
+    },
+    pool: "threads",
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "jsdom",
+          isolate: false,
+          include: ["src/**/*.spec.{tsx,ts}"],
+          exclude: ["**/node_modules/**", "src/lib/nextjs/**"],
+          setupFiles: ["tests/unit/setup.ts"]
+        },
+        resolve: {
+          alias: {
+            ...commonAlias,
+            "@interchain-ui/react/styles": path.resolve("./tests/unit/__mocks__/style.ts"),
+            "@interchain-ui/react/globalStyles": path.resolve("./tests/unit/__mocks__/style.ts"),
+            "@xterm/xterm/css/xterm.css": path.resolve("./tests/unit/__mocks__/style.ts"),
+            "@xterm/xterm": path.resolve("./tests/unit/__mocks__/xterm.ts"),
+            "@xterm/addon-fit": path.resolve("./tests/unit/__mocks__/xterm-addon-fit.ts")
+          }
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: "unit-node",
+          environment: "node",
+          include: ["src/lib/nextjs/**/*.spec.{tsx,ts}"],
+          setupFiles: ["src/lib/nextjs/setup-node-tests.ts"]
+        },
+        resolve: {
+          alias: {
+            ...commonAlias
+          }
+        }
+      }
+    ]
+  }
+});

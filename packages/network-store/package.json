@@ -1,0 +1,25 @@
+{
+  "name": "@akashnetwork/network-store",
+  "version": "1.0.1",
+  "description": "Package containing browser storage for Akash Network",
+  "keywords": [],
+  "license": "Apache-2.0",
+  "author": "",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "default": "./src/index.ts"
+    }
+  },
+  "main": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write ./*.{ts,json} **/*.{ts,json}",
+    "lint": "eslint .",
+    "validate:types": "tsc --noEmit && echo"
+  },
+  "dependencies": {
+    "@akashnetwork/chain-sdk": "1.0.0-alpha.29",
+    "@akashnetwork/net": "*",
+    "jotai": "^2.9.2"
+  }
+}

@@ -1,0 +1,38 @@
+---
+version: "2.0"
+
+services:
+  web:
+    image: <docker-hub-user>/console-deploy:<version>
+    env:
+      - MAINTENANCE_MODE=false
+    expose:
+      - port: 3001
+        as: 80
+        accept:
+          # Replace with the hostname you intend to serve this instance from
+          - console-air.example.com
+        to:
+          - global: true
+profiles:
+  compute:
+    web:
+      resources:
+        cpu:
+          units: 0.5
+        memory:
+          size: 500mi
+        storage:
+          size: 500mi
+  placement:
+    dcloud:
+      pricing:
+        web:
+          denom: uact
+          amount: 1000
+
+deployment:
+  web:
+    dcloud:
+      profile: web
+      count: 1

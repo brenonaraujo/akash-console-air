@@ -1,0 +1,298 @@
+"use client";
+import React, { useEffect, useMemo, useState } from "react";
+import { Snackbar } from "@akashnetwork/ui/components";
+import type { EncodeObject } from "@cosmjs/proto-signing";
+import { useManager } from "@cosmos-kit/react";
+import { OpenNewWindow } from "iconoir-react";
+import { useAtom } from "jotai";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { SnackbarKey } from "notistack";
+import { useSnackbar } from "notistack";
+
+import type { LoadingState } from "@src/components/layout/TransactionModal";
+import { TransactionModal } from "@src/components/layout/TransactionModal";
+import { useAllowance } from "@src/hooks/useAllowance";
+import { useWhen } from "@src/hooks/useWhen";
+import { useBalances } from "@src/queries/useBalancesQuery";
+import networkStore from "@src/store/networkStore";
+import { getStorageWallets, updateStorageWallets } from "@src/utils/walletUtils";
+import { useSelectedChain } from "../CustomChainProvider";
+import { useServices } from "../ServicesProvider";
+import { useSettings } from "../SettingsProvider";
+import { settingsIdAtom } from "../SettingsProvider/settingsStore";
+
+const CONSOLE_MEMO = "console air";
+
+const ERROR_MESSAGES = {
+  5: "Insufficient funds",
+  9: "Unknown address",
+  11: "Out of gas",
+  12: "Memo too large",
+  13: "Insufficient fee",
+  19: "Tx already in mempool",
+  25: "Invalid gas adjustment"
+};
+
+export type ContextType = {
+  address: string;
+  walletName: string;
+  isWalletConnected: boolean;
+  isWalletLoaded: boolean;
+  logout: () => void;
+  signAndBroadcastTx: (msgs: EncodeObject[]) => Promise<boolean>;
+  isWalletLoading: boolean;
+};
+
+/**
+ * @private for testing only
+ */
+export const WalletProviderContext = React.createContext<ContextType>({} as ContextType);
+
+const MESSAGE_STATES: Record<string, LoadingState> = {
+  "/akash.deployment.v1beta4.MsgCloseDeployment": "closingDeployment",
+  "/akash.deployment.v1beta4.MsgCreateDeployment": "searchingProviders",
+  "/akash.market.v1beta5.MsgCreateLease": "creatingDeployment",
+  "/akash.deployment.v1beta4.MsgUpdateDeployment": "updatingDeployment",
+  "/akash.escrow.v1.MsgAccountDeposit": "depositingDeployment"
+};
+
+/**
+ * WalletProvider is a client only component
+ */
+export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { analyticsService, publicConfig: appConfig, urlService } = useServices();
+
+  const [, setSettingsId] = useAtom(settingsIdAtom);
+  const [isWalletLoaded, setIsWalletLoaded] = useState<boolean>(true);
+  const [loadingState, setLoadingState] = useState<LoadingState | undefined>(undefined);
+  const { enqueueSnackbar, closeSnackbar } = useSnackbar();
+  const router = useRouter();
+  const { settings } = useSettings();
+  const userWallet = useSelectedChain();
+  const { address: walletAddress, username, isWalletConnected } = userWallet;
+  const { refetch: refetchBalances } = useBalances(walletAddress);
+  const { addEndpoints } = useManager();
+  const {
+    fee: { default: feeGranter }
+  } = useAllowance(walletAddress as string);
+
+  useWhen(walletAddress, loadWallet);
+
+  useWhen(isWalletConnected, () => {
+    analyticsService.track(
+      "connect_wallet",
+      {
+        category: "wallet",
+        label: "Connect wallet"
+      },
+      "GA"
+    );
+    analyticsService.identify({ custodialWallet: true });
+    analyticsService.trackSwitch("connect_wallet", "custodial", "Amplitude");
+  });
+
+  useEffect(() => {
+    if (!settings.apiEndpoint || !settings.rpcEndpoint) return;
+
+    addEndpoints({
+      akash: { rest: [settings.apiEndpoint], rpc: [settings.rpcEndpoint] },
+      "akash-sandbox": { rest: [settings.apiEndpoint], rpc: [settings.rpcEndpoint] },
+      "akash-testnet": { rest: [settings.apiEndpoint], rpc: [settings.rpcEndpoint] }
+    });
+  }, [addEndpoints, settings.apiEndpoint, settings.rpcEndpoint]);
+
+  useEffect(() => {
+    setSettingsId(walletAddress || null);
+  }, [walletAddress]);
+
+  function logout() {
+    userWallet.disconnect();
+
+    analyticsService.track("disconnect_wallet", {
+      category: "wallet",
+      label: "Disconnect wallet"
+    });
+
+    router.push(urlService.home());
+  }
+
+  async function loadWallet(): Promise<void> {
+    let currentWallets = getStorageWallets();
+
+    if (!currentWallets.some(x => x.address === walletAddress)) {
+      currentWallets = [...currentWallets, { name: username || "", address: walletAddress as string, selected: true }];
+    }
+
+    currentWallets = currentWallets.map(x => ({ ...x, selected: x.address === walletAddress }));
+
+    updateStorageWallets(currentWallets);
+
+    setIsWalletLoaded(true);
+  }
+
+  async function signAndBroadcastTx(msgs: EncodeObject[]): Promise<boolean> {
+    let pendingSnackbarKey: SnackbarKey | null = null;
+
+    try {
+      const enqueueTxSnackbar = () => {
+        pendingSnackbarKey = enqueueSnackbar(<Snackbar title="Broadcasting transaction..." subTitle="Please wait a few seconds" showLoading />, {
+          variant: "info",
+          autoHideDuration: null
+        });
+      };
+      setLoadingState("waitingForApproval");
+      const estimatedFees = await userWallet.estimateFee(msgs, undefined, CONSOLE_MEMO);
+      const txRaw = await userWallet.sign(
+        msgs,
+        {
+          ...estimatedFees,
+          granter: feeGranter
+        },
+        CONSOLE_MEMO
+      );
+
+      setLoadingState("broadcasting");
+      enqueueTxSnackbar();
+      const txResult = await userWallet.broadcast(txRaw);
+
+      setLoadingState(undefined);
+
+      if (txResult.code !== 0) {
+        throw new Error(txResult.rawLog);
+      }
+
+      showTransactionSnackbar("Transaction success!", "", txResult.transactionHash, "success");
+
+      analyticsService.track("successful_tx", {
+        category: "transactions",
+        label: "Successful transaction"
+      });
+
+      return true;
+    } catch (err: any) {
+      console.error(err);
+
+      const transactionHash = err.txHash;
+      let errorMsg = "An error has occurred";
+
+      if (err.message?.includes("was submitted but was not yet found on the chain")) {
+        errorMsg = "Transaction timeout";
+      } else if (err.message) {
+        try {
+          const reg = /Broadcasting transaction failed with code (.+?) \(codespace: (.+?)\)/i;
+          const match = err.message.match(reg);
+          const log = err.message.substring(err.message.indexOf("Log"), err.message.length);
+
+          if (match) {
+            const code = parseInt(match[1]);
+            const codeSpace = match[2];
+
+            if (codeSpace === "sdk" && code in ERROR_MESSAGES) {
+              errorMsg = ERROR_MESSAGES[code as keyof typeof ERROR_MESSAGES];
+            }
+          }
+
+          if (log) {
+            errorMsg += `. ${log}`;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      if (!errorMsg.includes("Request rejected")) {
+        analyticsService.track("failed_tx", {
+          category: "transactions",
+          label: "Failed transaction"
+        });
+      }
+
+      showTransactionSnackbar("Transaction has failed...", errorMsg, transactionHash, "error");
+
+      return false;
+    } finally {
+      refetchBalances();
+      if (pendingSnackbarKey) {
+        closeSnackbar(pendingSnackbarKey);
+      }
+
+      setLoadingState(undefined);
+    }
+  }
+
+  const showTransactionSnackbar = (
+    snackTitle: string,
+    snackMessage: string,
+    transactionHash: string,
+    snackVariant: React.ComponentProps<typeof Snackbar>["iconVariant"]
+  ) => {
+    enqueueSnackbar(
+      <Snackbar
+        title={snackTitle}
+        subTitle={<TransactionSnackbarContent snackMessage={snackMessage} transactionHash={transactionHash} isError={snackVariant === "error"} />}
+        iconVariant={snackVariant}
+      />,
+      {
+        variant: snackVariant,
+        autoHideDuration: 10000
+      }
+    );
+  };
+
+  return (
+    <WalletProviderContext.Provider
+      value={{
+        address: walletAddress as string,
+        walletName: username as string,
+        isWalletConnected: isWalletConnected,
+        isWalletLoaded: isWalletLoaded,
+        logout,
+        signAndBroadcastTx,
+        isWalletLoading: userWallet.isWalletConnecting
+      }}
+    >
+      {children}
+
+      <TransactionModal state={loadingState} />
+    </WalletProviderContext.Provider>
+  );
+};
+
+// Hook
+export function useWallet() {
+  return { ...React.useContext(WalletProviderContext) };
+}
+
+const SUPPORT_EMAIL = "support@akash.network";
+
+const TransactionSnackbarContent: React.FC<{ snackMessage: string; transactionHash: string; isError?: boolean }> = ({
+  snackMessage,
+  transactionHash,
+  isError
+}) => {
+  const { publicConfig: appConfig } = useServices();
+  const selectedNetworkId = networkStore.useSelectedNetworkId();
+  const txUrl = transactionHash && `${appConfig.NEXT_PUBLIC_STATS_APP_URL}/transactions/${transactionHash}?network=${selectedNetworkId}`;
+
+  return (
+    <>
+      {snackMessage}
+      {snackMessage && <br />}
+      {txUrl && (
+        <Link href={txUrl} target="_blank" className="inline-flex items-center space-x-2 !text-white">
+          <span>View transaction</span>
+          <OpenNewWindow className="text-xs" />
+        </Link>
+      )}
+      {isError && (
+        <div className="mt-2 text-xs">
+          Need help?{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}?subject=Transaction Error&body=${encodeURIComponent(snackMessage)}`} className="underline">
+            Contact {SUPPORT_EMAIL}
+          </a>
+        </div>
+      )}
+    </>
+  );
+};

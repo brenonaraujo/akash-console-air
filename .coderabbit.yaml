@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en"
+early_access: false
+tone_instructions: >
+  Be concise. Focus on bugs, security, concurrency and correctness.
+  Skip style nitpicks and obvious comments. This is the self-custody fork
+  (`@akashnetwork/console-air`) — there is no managed backend, no auth0,
+  no Drizzle/SQL layer. Wallet auth is via Keplr/Leap/Cosmostation.
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  sequence_diagrams: false
+  review_status: true
+  collapse_walkthrough: true
+  path_filters:
+    - "!**/__generated__/**"
+    - "!**/generated/**"
+    - "!**/*.xml"
+    - "!**/*.svg"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.gif"
+    - "!**/*.lock"
+    - "!dist/**"
+  path_instructions:
+    - path: "apps/deploy-web/**/*.{ts,tsx}"
+      instructions: >
+        Focus on: XSS via dangerouslySetInnerHTML or unescaped user content,
+        missing error boundaries, leaked sensitive data in client bundles
+        (env vars, keys, mnemonics), incorrect use of server vs client components,
+        missing loading/error states in data fetching, stale cache issues
+        with React Query, and wallet-signing edge cases (rejected sign,
+        chain switch, network mismatch). Skip CSS/styling opinions.
+    - path: "packages/**/*.ts"
+      instructions: >
+        Focus on breaking changes to public API surface,
+        type safety, and missing exports.
+    - path: ".github/workflows/**/*.yml"
+      instructions: >
+        Check for: missing pinned action versions (use SHA not tag),
+        secrets exposed in logs, overly broad permissions, missing
+        concurrency groups that could cause race conditions.
+    - path: "**/*.spec.ts"
+      instructions: >
+        Check that tests use a setup() function (not beforeEach with
+        shared mutable state). Verify meaningful assertions, not just
+        snapshot coverage. Skip style comments.
+        Ensure that tests don't reference secrets and instead generate them dynamically.
+    - path: "apps/deploy-web/tests/**/*.spec.ts"
+      instructions: >
+        Playwright e2e tests. Avoid hardcoded waits (use web-first
+        assertions or expect.poll). Tests must work against the sandbox
+        chain — no mainnet RPC dependencies. Don't commit real mnemonics.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "DRAFT"
+    drafts: false
+    base_branches:
+      - "main"
+knowledge_base:
+  learnings:
+    scope: "auto"
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"
+chat:
+  auto_reply: true

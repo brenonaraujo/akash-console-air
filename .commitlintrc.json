@@ -1,0 +1,39 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "network",
+        "wallet",
+        "sdl",
+        "user",
+        "auth",
+        "billing",
+        "provider",
+        "deployment",
+        "indexer",
+        "certificate",
+        "dx",
+        "config",
+        "stats",
+        "release",
+        "ci",
+        "repo",
+        "styling",
+        "observability",
+        "analytics",
+        "template",
+        "notifications",
+        "alert",
+        "notification-channel",
+        "jwt",
+        "log-collector",
+        "bid",
+        "onboarding",
+        "managed-wallet"
+      ]
+    ]
+  }
+}

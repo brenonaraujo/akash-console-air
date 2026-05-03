@@ -1,0 +1,50 @@
+name: GitHub Actions Linting
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - .github/actions/**
+      - .github/workflows/**
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - run: gh extension install https://github.com/cschleiden/gh-actionlint --pin v1.0.3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          gh actionlint \
+            -ignore 'description is required in metadata'
+        env:
+          SHELLCHECK_OPTS: >-
+            -e SC2129 # exclude Consider using { cmd1; cmd2; } >> file instead of individual redirects
+      - name: Ensure all local actions and workflows exist
+        run: |
+          has_errors=false
+          while IFS= read -r item; do
+            file_path="$item"
+            if [[ "$item" == .github/actions/* || "$item" == ./.github/actions/* ]]; then
+              file_path="$item/action.yml"
+            fi
+
+            echo "Checking: $file_path"
+            if [[ ! -f "$file_path" ]]; then
+              echo "Error: referencing non-existing action or workflow: $file_path"
+              has_errors=true
+            fi
+          done < <(
+            grep -RIn --include='*.yml' --include='*.yaml' -E '^[- \t]*uses:[ \t]*' .github/ \
+              | sed -E 's/^[^:]*:[0-9]+:[ \t-]*uses: *//' \
+              | awk '{$1=$1};1' \
+              | grep -E '^(\.\/|\.github\/)'
+          )
+
+          if $has_errors; then
+            exit 1
+          fi

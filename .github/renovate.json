@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["^@types/"],
+      "groupName": "types",
+      "automerge": true
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "devDependencies (non-major)",
+      "automerge": true
+    },
+    {
+      "matchPackagePatterns": ["^next$", "^next-", "^@\\w+/nextjs$", "^react$", "^react-dom$"],
+      "groupName": "Core React/Next packages"
+    },
+    {
+      "matchPackagePatterns": ["^eslint", "^@typescript-eslint", "prettier"],
+      "groupName": "Lint & formatting"
+    },
+    {
+      "matchPackagePatterns": ["^@cosmjs/", "^cosmjs-types$", "^@cosmos-kit/"],
+      "groupName": "CosmJS & Cosmos Kit"
+    },
+    {
+      "matchPackagePatterns": ["^@radix-ui/"],
+      "groupName": "Radix UI"
+    },
+    {
+      "matchPackagePatterns": ["^@mui/", "^@emotion/"],
+      "groupName": "MUI & Emotion"
+    },
+    {
+      "matchPackagePatterns": ["^@nivo/"],
+      "groupName": "Nivo charts"
+    },
+    {
+      "matchPackagePatterns": ["^@tanstack/"],
+      "groupName": "TanStack"
+    },
+    {
+      "matchPackagePatterns": ["^@sentry/"],
+      "groupName": "Sentry"
+    },
+    {
+      "matchPackagePatterns": ["^@playwright/", "^playwright"],
+      "groupName": "Playwright"
+    },
+    {
+      "matchPackagePatterns": ["^vitest", "^@vitest/"],
+      "groupName": "Vitest"
+    },
+    {
+      "matchPackagePatterns": ["^@dotenvx/", "^dotenv$", "^dotenv-"],
+      "groupName": "Dotenv"
+    }
+  ],
+  "npm": {
+    "enabled": true,
+    "minimumReleaseAge": "5 days"
+  },
+  "semanticCommits": "enabled",
+  "semanticCommitType": "fix",
+  "semanticCommitScope": "deps",
+  "commitMessagePrefix": "fix:",
+  "labels": ["dependencies"],
+  "prHourlyLimit": 1
+}

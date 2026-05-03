@@ -1,0 +1,101 @@
+name: e2e
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright self-custody
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NETWORK_ID: sandbox
+      # Bake the build with sandbox as the default chain so the initial settings
+      # bootstrap doesn't try to reach the dozen mainnet RPCs (some of which time
+      # out from GitHub-hosted runners and leave the page stuck on
+      # "Loading settings..." past every test's 5s visibility timeout).
+      NEXT_PUBLIC_DEFAULT_NETWORK_ID: sandbox
+      BASE_URL: http://127.0.0.1:3000
+      TEST_WALLET_MNEMONIC: ${{ secrets.TEST_WALLET_MNEMONIC }}
+      E2E_TESTING_CLIENT_TOKEN: console-crypto-e2e
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Pin npm to match packageManager field
+        run: npm install --global npm@11.11.0
+
+      - name: Verify required secrets
+        run: |
+          if [ -z "${TEST_WALLET_MNEMONIC}" ]; then
+            echo "::error::TEST_WALLET_MNEMONIC secret is not set. Add it to repository settings before running e2e."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: apps/deploy-web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build deploy-web
+        working-directory: apps/deploy-web
+        run: npm run build
+
+      - name: Start production server
+        working-directory: apps/deploy-web
+        run: |
+          npm run start > server.log 2>&1 &
+          echo $! > server.pid
+          for i in {1..60}; do
+            if curl -sSf "${BASE_URL}" > /dev/null; then
+              echo "Server is up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::Server failed to start within 60s"
+          tail -50 server.log
+          exit 1
+
+      - name: Run Playwright self-custody tests
+        working-directory: apps/deploy-web
+        run: npm run test:e2e
+
+      - name: Stop server
+        if: always()
+        working-directory: apps/deploy-web
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/deploy-web/playwright-report/
+          retention-days: 14
+
+      - name: Upload server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: apps/deploy-web/server.log
+          retention-days: 14

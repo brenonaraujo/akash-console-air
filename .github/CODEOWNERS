@@ -1,0 +1,11 @@
+/.github/ @akash-network/console
+.codecov.yml @akash-network/console
+/apps/*/src/ @akash-network/console
+/packages/*/src/ @akash-network/console
+
+# Exclude test files from code ownership
+*.spec.ts
+*.spec.tsx
+*.integration.ts
+**/test/
+**/tests/

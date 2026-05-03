@@ -1,0 +1,37 @@
+{
+  "name": "@akashnetwork/http-sdk",
+  "version": "1.1.5",
+  "description": "Package containing http layer for Akash Network",
+  "keywords": [],
+  "license": "Apache-2.0",
+  "author": "",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": "./src/index.ts"
+  },
+  "main": "src/index.ts",
+  "scripts": {
+    "format": "prettier --write ./*.{ts,json} **/*.{ts,json}",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate:types": "tsc -p tsconfig.build.json --noEmit && echo"
+  },
+  "dependencies": {
+    "@akashnetwork/logging": "*",
+    "axios": "1.7.2",
+    "cockatiel": "^3.2.1",
+    "date-fns": "^4.1.0",
+    "lodash": "^4.17.21",
+    "zod": "3.*"
+  },
+  "devDependencies": {
+    "@akashnetwork/net": "*",
+    "@types/lodash": "^4.17.7",
+    "vitest": "4.0.18"
+  },
+  "peerDependencies": {
+    "@cosmjs/proto-signing": "^0.36.2",
+    "@cosmjs/stargate": "^0.36.2"
+  }
+}

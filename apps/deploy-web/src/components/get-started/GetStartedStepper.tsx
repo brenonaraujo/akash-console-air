@@ -1,0 +1,193 @@
+"use client";
+import React, { useEffect, useState } from "react";
+import { MdRestartAlt } from "react-icons/md";
+import { Button, buttonVariants, CustomTooltip } from "@akashnetwork/ui/components";
+import { cn } from "@akashnetwork/ui/utils";
+import Step from "@mui/material/Step";
+import StepContent from "@mui/material/StepContent";
+import StepLabel from "@mui/material/StepLabel";
+import Stepper from "@mui/material/Stepper";
+import { Check, Rocket, WarningCircle, XmarkCircleSolid } from "iconoir-react";
+import Link from "next/link";
+
+import { useWallet } from "@src/context/WalletProvider";
+import { useChainParam } from "@src/hooks/useChainParam/useChainParam";
+import { useWalletBalance } from "@src/hooks/useWalletBalance";
+import { RouteStep } from "@src/types/route-steps.type";
+import { udenomToDenom } from "@src/utils/mathHelpers";
+import { uaktToAKT } from "@src/utils/priceUtils";
+import { UrlService } from "@src/utils/urlUtils";
+import { ExternalLink } from "../shared/ExternalLink";
+import { WalletConnectionButtons } from "../wallet/WalletConnectionButtons";
+import { QontoConnector, QontoStepIcon } from "./Stepper";
+
+export const GetStartedStepper: React.FunctionComponent = () => {
+  const [activeStep, setActiveStep] = useState(0);
+  const { isWalletConnected } = useWallet();
+  const { balance: walletBalance } = useWalletBalance();
+  const { minDeposit } = useChainParam();
+  const aktBalance = walletBalance ? uaktToAKT(walletBalance.balanceUAKT) : 0;
+  const actBalance = walletBalance ? udenomToDenom(walletBalance.balanceUACT) : 0;
+
+  useEffect(() => {
+    const getStartedStep = localStorage.getItem("getStartedStep");
+
+    if (getStartedStep) {
+      const _getStartedStep = parseInt(getStartedStep);
+      setActiveStep(_getStartedStep >= 0 && _getStartedStep <= 2 ? _getStartedStep : 0);
+    }
+  }, []);
+
+  const handleNext = () => {
+    setActiveStep(prevActiveStep => {
+      const newStep = prevActiveStep + 1;
+
+      localStorage.setItem("getStartedStep", newStep.toString());
+
+      return newStep;
+    });
+  };
+
+  const handleReset = () => {
+    setActiveStep(0);
+    localStorage.setItem("getStartedStep", "0");
+  };
+
+  const onStepClick = (step: number) => {
+    setActiveStep(step);
+
+    localStorage.setItem("getStartedStep", step.toString());
+  };
+
+  return (
+    <Stepper activeStep={activeStep} orientation="vertical" connector={<QontoConnector />}>
+      <Step>
+        <StepLabel
+          StepIconComponent={QontoStepIcon}
+          onClick={() => (activeStep > 0 ? onStepClick(0) : null)}
+          classes={{ label: cn("text-xl tracking-tight", { ["cursor-pointer hover:text-primary"]: activeStep > 0, ["!font-bold"]: activeStep === 0 }) }}
+        >
+          Connect Wallet
+        </StepLabel>
+
+        <StepContent>
+          {isWalletConnected ? (
+            <div className="my-4 flex items-center space-x-2">
+              <Check className="text-green-600" />
+              <span>Wallet is installed</span>{" "}
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Connect your Keplr wallet to get started.</p>
+          )}
+
+          <p className="text-muted-foreground">
+            You need at least {minDeposit.act} ACT in your wallet to deploy on Akash. If you don't have {minDeposit.act} ACT, you can switch to the sandbox or
+            ask help in our <ExternalLink href="https://discord.gg/akash" text="Discord" />.
+          </p>
+
+          <Button className="mt-4" variant="default" onClick={handleNext}>
+            Next
+          </Button>
+          <Link className={cn(buttonVariants({ variant: "text" }))} href={UrlService.getStartedWallet()}>
+            Learn how
+          </Link>
+
+          {!isWalletConnected && (
+            <div>
+              <div className="my-4 flex items-center space-x-2">
+                <XmarkCircleSolid className="text-destructive" />
+                <span>Wallet is not connected</span>
+              </div>
+
+              <WalletConnectionButtons className="gap-2" />
+            </div>
+          )}
+
+          {walletBalance && (
+            <div className="my-4 flex items-center space-x-2">
+              {aktBalance >= minDeposit.akt || actBalance >= minDeposit.act ? (
+                <Check className="text-green-600" />
+              ) : (
+                <CustomTooltip
+                  title={
+                    <>
+                      If you don&apos;t have {minDeposit.act} ACT, you can request some tokens to get started on our{" "}
+                      <ExternalLink href="https://discord.gg/akash" text="Discord" />.
+                    </>
+                  }
+                >
+                  <WarningCircle className="text-warning" />
+                </CustomTooltip>
+              )}
+              <span>
+                You have <strong>{aktBalance}</strong> AKT and <strong>{actBalance}</strong> ACT
+              </span>
+            </div>
+          )}
+        </StepContent>
+      </Step>
+
+      <Step>
+        <StepLabel
+          StepIconComponent={QontoStepIcon}
+          onClick={() => onStepClick(1)}
+          classes={{
+            label: cn("text-xl tracking-tight", {
+              ["cursor-pointer hover:text-primary"]: activeStep > 1,
+              ["!font-bold"]: activeStep === 1
+            })
+          }}
+        >
+          Docker container
+        </StepLabel>
+        <StepContent>
+          <p className="mb-2 text-muted-foreground">
+            To deploy on Akash, you need a docker container image as everything runs within Kubernetes. You can make your own or browse through pre-made
+            solutions in the marketplace.
+          </p>
+
+          <p className="text-muted-foreground">For the sake of getting started, we will deploy a simple Next.js app that you can find in the deploy page.</p>
+          <div className="my-4 flex flex-col flex-wrap items-start space-y-4 sm:flex-row sm:items-center sm:space-x-4 sm:space-y-0">
+            <Button variant="default" onClick={handleNext}>
+              Next
+            </Button>
+
+            <div>
+              <ExternalLink href="https://docs.docker.com/get-started/" text="Learn how" />
+            </div>
+
+            <Link href={UrlService.templates()} className={cn("py-4", buttonVariants({ variant: "secondary" }))}>
+              Explore Marketplace
+            </Link>
+          </div>
+        </StepContent>
+      </Step>
+
+      <Step>
+        <StepLabel StepIconComponent={QontoStepIcon} classes={{ label: cn("text-xl tracking-tight", { ["!font-bold"]: activeStep === 2 }) }}>
+          Hello world
+        </StepLabel>
+        <StepContent>
+          <p className="text-muted-foreground">
+            Deploy your first web app on Akash! This is a simple Next.js app and you can see the{" "}
+            <ExternalLink href="https://github.com/akash-network/hello-akash-world" text="source code here" />.
+          </p>
+          <div className="my-4 space-x-2">
+            <Link
+              className={cn("space-x-2", buttonVariants({ variant: "default" }))}
+              href={UrlService.newDeployment({ templateId: "hello-world", step: RouteStep.editDeployment })}
+            >
+              <Rocket className="rotate-45" />
+              <span>Deploy!</span>
+            </Link>
+
+            <Button onClick={handleReset} className="space-x-2" variant="ghost">
+              <MdRestartAlt />
+              <span>Reset</span>
+            </Button>
+          </div>
+        </StepContent>
+      </Step>
+    </Stepper>
+  );
+};

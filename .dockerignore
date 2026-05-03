@@ -1,0 +1,14 @@
+**/node_modules/**
+**/data/**
+**/npm-debug.log
+**/.git
+
+**/.env.local
+**/.env.local.*
+**/.env.test
+**/.env.*.local
+**/.env.*.test
+
+**/.next
+*.md
+**/junit.xml

@@ -1,0 +1,45 @@
+import { buttonVariants } from "@akashnetwork/ui/components";
+import { cn } from "@akashnetwork/ui/utils";
+import { NavArrowRight } from "iconoir-react";
+import type { NextPage, NextPageContext } from "next";
+import Link from "next/link";
+import { NextSeo } from "next-seo";
+
+import { Title } from "@src/components/shared/Title";
+import { UrlService } from "@src/utils/urlUtils";
+import Layout from "../components/layout/Layout";
+
+type Props = {
+  statusCode: number;
+};
+
+const Error: NextPage<Props> = ({ statusCode }) => {
+  return (
+    <Layout>
+      <NextSeo title="Error" />
+
+      <div className="text-center">
+        <h1>{statusCode}</h1>
+
+        <Title>Error occurred.</Title>
+
+        <p>{statusCode ? `An error ${statusCode} occurred on server` : "An error occurred on client"}</p>
+
+        <div className="pt-4">
+          <Link className={cn(buttonVariants({ variant: "default" }), "inline-flex items-center")} href={UrlService.home()}>
+            Go to homepage&nbsp;
+            <NavArrowRight className="text-sm" />
+          </Link>
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
+Error.getInitialProps = async (context: NextPageContext) => {
+  const { res, err } = context;
+  const statusCode = res ? res.statusCode : err ? err.statusCode || 400 : 404;
+  return { statusCode };
+};
+
+export default Error;
