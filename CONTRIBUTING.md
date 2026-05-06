@@ -25,6 +25,8 @@ Installing an npm package must be done at the root with the workspace flag, e.g.
 npm i -w ./apps/deploy-web name-of-the-package@version
 ```
 
+If CI fails with `Missing: <pkg> from lock file`, your install pruned a Linux-only optional dependency (typically a rolldown or sharp variant) that `npm ci` needs on the CI runner. Run `npm run deps:relock` to do a clean re-resolve and commit the resulting `package-lock.json`. Avoid running this preemptively — it produces a large diff that's harder to security-review.
+
 ### IV. Commit Messages
 
 Follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard:
