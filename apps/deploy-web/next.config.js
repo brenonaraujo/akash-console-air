@@ -6,7 +6,32 @@ const { version } = require("./package.json");
 const path = require("path");
 const CopyPlugin = require("copy-webpack-plugin");
 
-const transpilePackages = ["geist", "@akashnetwork/ui"];
+const transpilePackages = [
+  "geist",
+  "@akashnetwork/ui",
+  "monaco-editor",
+  "@nivo/core",
+  "@nivo/line",
+  "@nivo/pie",
+  "@nivo/tooltip",
+  "@nivo/colors",
+  "@nivo/legends",
+  "@nivo/scales",
+  "@nivo/voronoi",
+  "@nivo/axes",
+  "@nivo/annotations",
+  "d3-scale",
+  "d3-scale-chromatic",
+  "d3-interpolate",
+  "d3-color",
+  "d3-format",
+  "d3-time",
+  "d3-time-format",
+  "d3-array",
+  "d3-shape",
+  "d3-path",
+  "internmap"
+];
 
 /**
  * @type {import('next').NextConfig}
@@ -21,15 +46,15 @@ const nextConfig = {
     styledComponents: true
   },
   images: {
-    domains: ["raw.githubusercontent.com", "avatars.githubusercontent.com"]
+    remotePatterns: [
+      { protocol: "https", hostname: "raw.githubusercontent.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" }
+    ]
   },
   output: "standalone",
   typescript: {
     tsconfigPath: "./tsconfig.build.json",
     ignoreBuildErrors: true
-  },
-  eslint: {
-    ignoreDuringBuilds: true
   },
   transpilePackages,
   i18n: {
@@ -41,12 +66,11 @@ const nextConfig = {
     pagesBufferLength: 10
   },
   experimental: {
+    // Required: @nivo/* dist is CJS but depends on ESM-only d3-* packages.
+    // Without "loose", Next 16's production build refuses the CJS→ESM imports.
+    esmExternals: "loose",
     optimizePackageImports: [
       "@interchain-ui/react",
-      "@nivo/core",
-      "@nivo/line",
-      "@nivo/pie",
-      "@nivo/tooltip",
       "@radix-ui/react-icons",
       "chain-registry",
       "iconoir-react",
